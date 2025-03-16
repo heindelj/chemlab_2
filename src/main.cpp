@@ -5,6 +5,11 @@
 #include "ui_manager.h"
 #include "imgui_manager.h"
 
+struct AppData {
+    UIManager *uiManager;
+    Renderer *renderer;
+};
+
 // Window dimensions
 const unsigned int SCR_WIDTH = 1200;
 const unsigned int SCR_HEIGHT = 900;
@@ -15,14 +20,20 @@ void error_callback(int error, const char* description) {
 }
 
 // Callback function for window resize
-void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
+void framebuffer_size_callback(GLFWwindow *window, int width, int height)
+{
     glViewport(0, 0, width, height);
-    
+
     // Update UI manager with new dimensions
-    void* ptr = glfwGetWindowUserPointer(window);
+    void *ptr = glfwGetWindowUserPointer(window);
     if (ptr) {
-        UIManager* uiManager = static_cast<UIManager*>(ptr);
-        uiManager->updateScreenSize(width, height);
+        AppData *appData = static_cast<AppData *>(ptr);
+        appData->uiManager->updateScreenSize(width, height);
+
+        // Resize framebuffers for all regions
+        for (const auto &region : appData->uiManager->getRegions()) {
+            appData->renderer->resizeFramebuffer(&region, width, height);
+        }
     }
 }
 
@@ -92,9 +103,12 @@ int main() {
     // Create UI manager - will handle regions and UI components
     UIManager uiManager(SCR_WIDTH, SCR_HEIGHT);
     
-    // Store UI manager pointer for callbacks
-    glfwSetWindowUserPointer(window, &uiManager);
-    
+    // Create AppData for callbacks
+    AppData appData;
+    appData.uiManager = &uiManager;
+    appData.renderer = &renderer;
+    glfwSetWindowUserPointer(window, &appData);
+
     // Set up UI regions (example: split screen into main view and sidebar)
     uiManager.addRegion("main_view", 0.0f, 0.0f, 0.8f, 1.0f); // x, y, width, height (normalized 0-1)
     uiManager.addRegion("sidebar", 0.8f, 0.0f, 0.2f, 1.0f);
@@ -126,18 +140,20 @@ int main() {
         // Clear the screen
         glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        
-        // Render UI regions first (background)
-        for (const auto& region : uiManager.getRegions()) {
-            renderer.renderRegion(region);
-        }
-        
-        // Start ImGui frame
+
         imguiManager.newFrame();
-        
-        // Render ImGui (will be drawn on top of OpenGL content)
         imguiManager.render();
-        
+
+        // Then, render all framebuffers to the screen
+        for (const auto &region : uiManager.getRegions())
+        {
+            if (region.name == "main_view")
+            {
+                renderer.renderRegion(region);
+                renderer.renderFramebufferToScreen(region);
+            }
+        }
+
         // Swap buffers and poll events
         glfwSwapBuffers(window);
         glfwPollEvents();

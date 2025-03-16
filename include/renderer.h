@@ -6,15 +6,33 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <vector>
+#include <map>
 #include "ui_region.h"
 
 class Renderer {
 public:
     Renderer(GLFWwindow* window);
+    bool initialized = false;
     void cleanup();
     
     void renderRegion(const UIRegion& region);
-    
+
+    // Framebuffer methods and type
+    void createFramebufferForRegion(const UIRegion &region);
+    void bindFramebufferForRegion(const std::string &regionName);
+    void unbindFramebuffer();
+    void renderFramebufferToScreen(const UIRegion &region);
+    void resizeFramebuffer(const UIRegion* region, int width, int height);
+    void cleanupFramebuffers();
+    struct FramebufferObject {
+        unsigned int fbo;          // Framebuffer object
+        unsigned int colorTexture; // Color attachment
+        unsigned int depthRbo;     // Depth renderbuffer
+        int width;                 // Width in pixels
+        int height;                // Height in pixels
+    };
+    std::map<std::string, FramebufferObject> framebuffers;
+
     // Future methods for specialized rendering
     void renderMolecule(const UIRegion& region); /* Molecule data */
     void renderGraph(const UIRegion& region); /* Graph data */
@@ -26,15 +44,14 @@ public:
     // Set the background color for all rendering
     void setBackgroundColor(float r, float g, float b);
 
-    bool initialized = false;
-
     // Shaders
     unsigned int basicShaderProgram;
     unsigned int triangleShaderProgram;
-    
+    unsigned int framebufferShaderProgram;
+
     // Reference to the window
-    GLFWwindow* window;
-    
+    GLFWwindow *window;
+
     // Setup methods
     void initShaders();
     
