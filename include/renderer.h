@@ -30,6 +30,7 @@ public:
 
     // Shaders
     unsigned int basicShaderProgram;
+    unsigned int triangleShaderProgram;
     
     // Reference to the window
     GLFWwindow* window;

@@ -27,6 +27,30 @@ const char* basicFragmentShaderSource = R"(
     }
 )";
 
+// Basic triangle shader
+const char* triangleVertexShaderSource = R"(
+    #version 460 core
+    layout (location = 0) in vec3 aPos; // the position variable has attribute position 0
+
+    void main()
+    {
+        gl_Position = vec4(aPos, 1.0);
+    }
+)";
+
+// Basic fragment shader
+const char* triangleFragmentShaderSource = R"(
+    #version 460 core
+    out vec4 FragColor;
+  
+    uniform vec4 u_Color;
+
+    void main()
+    {
+        FragColor = u_Color;
+    } 
+)";
+
 Renderer::Renderer(GLFWwindow* window) : window(window) {
     initShaders();
 }
@@ -40,11 +64,7 @@ void Renderer::cleanup() {
 
 void Renderer::initShaders() {
     basicShaderProgram = createShaderProgram(basicVertexShaderSource, basicFragmentShaderSource);
-    if (basicShaderProgram > 0) {
-        initialized = true;
-    } else {
-        std::cerr << "Failed to create shader program." << std::endl;
-    }
+    triangleShaderProgram = createShaderProgram(triangleVertexShaderSource, triangleFragmentShaderSource);
 }
 
 void Renderer::clearFrame(float r, float g, float b, float a) {
@@ -79,7 +99,33 @@ void Renderer::renderRegion(const UIRegion& region) {
     // Draw based on region type/content
     if (region.name == "main_view") {
         // Main view background (ImGui will draw on top)
+
+        // The below is just placeholder to put something on the screen while
+        // we get the rendering code behaving as we want.
+        float vertices[] = {
+            -0.5f, -0.5f, 0.0f,
+             0.5f, -0.5f, 0.0f,
+             0.0f,  0.5f, 0.0f
+        };
+        
+        unsigned int VBO, VAO;
+        glGenBuffers(1, &VBO);
+        glGenVertexArrays(1, &VAO);
+        glBindVertexArray(VAO);
+        glBindBuffer(GL_ARRAY_BUFFER, VBO);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0);
+        glEnableVertexAttribArray(0);
+
+        glUseProgram(triangleShaderProgram);
         glClearColor(backgroundColor.r, backgroundColor.g, backgroundColor.b, 1.0f);
+        glBindVertexArray(VAO);
+
+        float timeValue = glfwGetTime();
+        float greenValue = (sin(timeValue) / 2.0f) + 0.5f;
+        int vertexColorLocation = glGetUniformLocation(triangleShaderProgram, "u_Color");
+        glUniform4f(vertexColorLocation, 0.0f, greenValue, 0.0f, 1.0f);
+        glDrawArrays(GL_TRIANGLES, 0, 3);
         // Will call renderMolecule() when implemented
     }
     else if (region.name == "sidebar") {
@@ -137,7 +183,6 @@ unsigned int Renderer::createShaderProgram(const char* vertexSource, const char*
 
     // Check for linking errors
     glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
-    std::cout << success << std::endl;
     if (success != 1) {
         glGetProgramInfoLog(shaderProgram, 512, NULL, infoLog);
         std::cerr << "ERROR::SHADER::PROGRAM::LINKING_FAILED\n" << infoLog << std::endl;
@@ -145,6 +190,8 @@ unsigned int Renderer::createShaderProgram(const char* vertexSource, const char*
         glDeleteShader(fragmentShader);
         glDeleteProgram(shaderProgram);
         return 0;
+    } else {
+        initialized = true;
     }
     
     // Delete shaders as they're linked into the program and no longer necessary
