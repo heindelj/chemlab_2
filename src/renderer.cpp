@@ -3,30 +3,27 @@
 
 // Basic vertex shader
 const char* basicVertexShaderSource = R"(
-    #version 330 core
-    layout (location = 0) in vec3 aPos;
-    layout (location = 1) in vec3 aColor;
+    #version 460 core
+    layout (location = 0) in vec3 aPos; // the position variable has attribute position 0
     
-    out vec3 vertexColor;
-    
-    uniform mat4 model;
-    uniform mat4 view;
-    uniform mat4 projection;
-    
-    void main() {
-        gl_Position = projection * view * model * vec4(aPos, 1.0);
-        vertexColor = aColor;
+    out vec4 vertexColor; // specify a color output to the fragment shader
+
+    void main()
+    {
+        gl_Position = vec4(aPos, 1.0); // see how we directly give a vec3 to vec4's constructor
+        vertexColor = vec4(0.5, 0.0, 0.0, 1.0); // set the output variable to a dark-red color
     }
 )";
 
 // Basic fragment shader
 const char* basicFragmentShaderSource = R"(
-    #version 330 core
-    in vec3 vertexColor;
+    #version 460 core
     out vec4 FragColor;
-    
-    void main() {
-        FragColor = vec4(vertexColor, 1.0);
+    in vec4 vertexColor; // the input variable from the vertex shader (same name and same type)  
+
+    void main()
+    {
+        FragColor = vertexColor;
     }
 )";
 
@@ -42,18 +39,21 @@ void Renderer::cleanup() {
 }
 
 void Renderer::initShaders() {
-    try {
-        basicShaderProgram = createShaderProgram(basicVertexShaderSource, basicFragmentShaderSource);
-        if (basicShaderProgram > 0) {
-            initialized = true;
-        } else {
-            std::cerr << "Failed to create shader program." << std::endl;
-        }
-    } catch (const std::exception& e) {
-        std::cerr << "Exception in initShaders: " << e.what() << std::endl;
-    } catch (...) {
-        std::cerr << "Unknown exception in initShaders" << std::endl;
+    basicShaderProgram = createShaderProgram(basicVertexShaderSource, basicFragmentShaderSource);
+    if (basicShaderProgram > 0) {
+        initialized = true;
+    } else {
+        std::cerr << "Failed to create shader program." << std::endl;
     }
+}
+
+void Renderer::clearFrame(float r, float g, float b, float a) {
+    glClearColor(r, g, b, a);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+}
+
+void Renderer::setBackgroundColor(float r, float g, float b) {
+    backgroundColor = glm::vec3(r, g, b);
 }
 
 void Renderer::renderRegion(const UIRegion& region) {
@@ -76,21 +76,19 @@ void Renderer::renderRegion(const UIRegion& region) {
     // Draw region boundary (for debugging)
     glUseProgram(basicShaderProgram);
     
-    // For now, just draw a colored rectangle to show the region
-    // In the future, this will dispatch to specialized rendering methods based on region content
-    
     // Draw based on region type/content
     if (region.name == "main_view") {
-        glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+        // Main view background (ImGui will draw on top)
+        glClearColor(backgroundColor.r, backgroundColor.g, backgroundColor.b, 1.0f);
         // Will call renderMolecule() when implemented
     }
     else if (region.name == "sidebar") {
-        glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
-        // Will call renderControls() when implemented
+        // Since we're using ImGui for the sidebar, just clear to match background
+        glClearColor(backgroundColor.r, backgroundColor.g, backgroundColor.b, 1.0f);
     }
     else if (region.name == "status") {
-        glClearColor(0.3f, 0.3f, 0.5f, 1.0f);
-        // Will display status info
+        // Since we're using ImGui for the status bar, just clear to match background
+        glClearColor(backgroundColor.r, backgroundColor.g, backgroundColor.b, 1.0f);
     }
     
     // This is just placeholder drawing code
@@ -127,59 +125,31 @@ unsigned int Renderer::createShaderProgram(const char* vertexSource, const char*
     int success;
     char infoLog[512];
     
-    try {
-        // Compile vertex shader
-        vertexShader = compileShader(GL_VERTEX_SHADER, vertexSource);
-        if (vertexShader == 0) {
-            std::cerr << "Failed to compile vertex shader" << std::endl;
-            return 0;
-        }
-        
-        // Compile fragment shader
-        fragmentShader = compileShader(GL_FRAGMENT_SHADER, fragmentSource);
-        if (fragmentShader == 0) {
-            glDeleteShader(vertexShader);
-            std::cerr << "Failed to compile fragment shader" << std::endl;
-            return 0;
-        }
-        
-        // Create and link shader program
-        shaderProgram = glCreateProgram();
-        if (shaderProgram == 0) {
-            glDeleteShader(vertexShader);
-            glDeleteShader(fragmentShader);
-            std::cerr << "Failed to create shader program" << std::endl;
-            return 0;
-        }
-        
-        glAttachShader(shaderProgram, vertexShader);
-        glAttachShader(shaderProgram, fragmentShader);
-        glLinkProgram(shaderProgram);
-        
-        // Check for linking errors
-        glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
-        if (!success) {
-            glGetProgramInfoLog(shaderProgram, 512, NULL, infoLog);
-            std::cerr << "ERROR::SHADER::PROGRAM::LINKING_FAILED\n" << infoLog << std::endl;
-            glDeleteShader(vertexShader);
-            glDeleteShader(fragmentShader);
-            glDeleteProgram(shaderProgram);
-            return 0;
-        }
-        
-        // Delete shaders as they're linked into the program and no longer necessary
+    // Compile vertex and fragment shaders
+    vertexShader = compileShader(GL_VERTEX_SHADER, vertexSource);
+    fragmentShader = compileShader(GL_FRAGMENT_SHADER, fragmentSource);
+
+    // Create actual shader program
+    shaderProgram = glCreateProgram();
+    glAttachShader(shaderProgram, vertexShader);
+    glAttachShader(shaderProgram, fragmentShader);
+    glLinkProgram(shaderProgram);
+
+    // Check for linking errors
+    glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
+    std::cout << success << std::endl;
+    if (success != 1) {
+        glGetProgramInfoLog(shaderProgram, 512, NULL, infoLog);
+        std::cerr << "ERROR::SHADER::PROGRAM::LINKING_FAILED\n" << infoLog << std::endl;
         glDeleteShader(vertexShader);
         glDeleteShader(fragmentShader);
-        
-        return shaderProgram;
-    }
-    catch (const std::exception& e) {
-        // Clean up in case of exception
-        if (vertexShader > 0) glDeleteShader(vertexShader);
-        if (fragmentShader > 0) glDeleteShader(fragmentShader);
-        if (shaderProgram > 0) glDeleteProgram(shaderProgram);
-        
-        std::cerr << "Exception in createShaderProgram: " << e.what() << std::endl;
+        glDeleteProgram(shaderProgram);
         return 0;
     }
+    
+    // Delete shaders as they're linked into the program and no longer necessary
+    glDeleteShader(vertexShader);
+    glDeleteShader(fragmentShader);
+    
+    return shaderProgram;
 }

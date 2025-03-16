@@ -3,6 +3,7 @@
 #include <iostream>
 #include "renderer.h"
 #include "ui_manager.h"
+#include "imgui_manager.h"
 
 // Window dimensions
 const unsigned int SCR_WIDTH = 1200;
@@ -16,6 +17,13 @@ void error_callback(int error, const char* description) {
 // Callback function for window resize
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     glViewport(0, 0, width, height);
+    
+    // Update UI manager with new dimensions
+    void* ptr = glfwGetWindowUserPointer(window);
+    if (ptr) {
+        UIManager* uiManager = static_cast<UIManager*>(ptr);
+        uiManager->updateScreenSize(width, height);
+    }
 }
 
 // Process input
@@ -44,8 +52,8 @@ int main() {
     }
     
     // Configure GLFW
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);  // Ensure window has title bar and border
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);  // Make window resizable
@@ -84,10 +92,31 @@ int main() {
     // Create UI manager - will handle regions and UI components
     UIManager uiManager(SCR_WIDTH, SCR_HEIGHT);
     
+    // Store UI manager pointer for callbacks
+    glfwSetWindowUserPointer(window, &uiManager);
+    
     // Set up UI regions (example: split screen into main view and sidebar)
     uiManager.addRegion("main_view", 0.0f, 0.0f, 0.8f, 1.0f); // x, y, width, height (normalized 0-1)
     uiManager.addRegion("sidebar", 0.8f, 0.0f, 0.2f, 1.0f);
     uiManager.addRegion("status", 0.0f, 0.9f, 0.8f, 0.1f);
+    
+    // Initialize ImGui Manager
+    ImGuiManager imguiManager(window);
+    if (imguiManager.init()) {
+        std::cout << "ImGui initialized successfully." << std::endl;
+        
+        // Add example molecule info
+        imguiManager.setMoleculeInfo("Caffeine", 24, 1.2f);
+        imguiManager.setAppStatus("Ready to analyze molecules");
+    } else {
+        std::cerr << "Failed to initialize ImGui. Continuing without ImGui support." << std::endl;
+    }
+    
+    // Enable vsync
+    glfwSwapInterval(1);
+    
+    // Enable depth testing
+    glEnable(GL_DEPTH_TEST);
     
     // Render loop
     while (!glfwWindowShouldClose(window)) {
@@ -98,10 +127,16 @@ int main() {
         glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         
-        // Render regions
+        // Render UI regions first (background)
         for (const auto& region : uiManager.getRegions()) {
             renderer.renderRegion(region);
         }
+        
+        // Start ImGui frame
+        imguiManager.newFrame();
+        
+        // Render ImGui (will be drawn on top of OpenGL content)
+        imguiManager.render();
         
         // Swap buffers and poll events
         glfwSwapBuffers(window);
@@ -110,6 +145,7 @@ int main() {
     
     // Clean up
     renderer.cleanup();
+    imguiManager.shutdown();
     glfwTerminate();
     return 0;
 }

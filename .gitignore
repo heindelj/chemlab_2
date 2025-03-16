@@ -1,10 +1,10 @@
-<<<<<<< HEAD
-=======
 # Folders
 build/
 .vscode/
 
->>>>>>> ec3ad86 (Setup OpenGL project)
+# Files
+imgui.ini
+
 # Prerequisites
 *.d
 
