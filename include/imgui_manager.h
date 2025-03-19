@@ -39,11 +39,10 @@ public:
     
     // Callback for GLFW when window size changes
     static void framebufferSizeCallback(GLFWwindow* window, int width, int height);
-    
+
     // Flag for demo window (for development)
     bool showDemoWindow = false;
     
-private:
     GLFWwindow* window;
     bool initialized = false;
     
@@ -53,7 +52,15 @@ private:
         int atoms = 0;
         float radius = 1.0f;
     } moleculeInfo;
-    
+
+    struct BoundaryLineSettings
+    {
+        bool show = true;
+        float width = 2.0f;
+        ImVec4 color = ImVec4(0.4f, 0.4f, 0.4f, 1.0f);
+    } boundaryLineSettings;
+    const BoundaryLineSettings &getBoundaryLineSettings() const { return boundaryLineSettings; }
+
     std::string appStatus = "Ready";
     
     // UI colors and style

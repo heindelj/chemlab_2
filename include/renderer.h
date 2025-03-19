@@ -24,6 +24,9 @@ public:
     void renderFramebufferToScreen(const UIRegion &region);
     void resizeFramebuffer(const UIRegion* region, int width, int height);
     void cleanupFramebuffers();
+    // Draw boundary lines between UI regions
+    void renderBoundaryLines(const std::vector<UIRegion> &regions, float lineWidth = 2.0f, glm::vec3 lineColor = glm::vec3(0.3f, 0.3f, 0.3f));
+
     struct FramebufferObject {
         unsigned int fbo;          // Framebuffer object
         unsigned int colorTexture; // Color attachment
@@ -48,6 +51,7 @@ public:
     unsigned int basicShaderProgram;
     unsigned int triangleShaderProgram;
     unsigned int framebufferShaderProgram;
+    unsigned int lineShaderProgram;
 
     // Reference to the window
     GLFWwindow *window;

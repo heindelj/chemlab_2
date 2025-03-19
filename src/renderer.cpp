@@ -81,24 +81,71 @@ const char *framebufferFragmentShaderSource = R"(
     }
 )";
 
+const char *lineVertexShaderSource = R"(
+    #version 460 core
+    layout (location = 0) in vec3 aPos;
+    
+    uniform mat4 uProjection;
+    
+    void main()
+    {
+        gl_Position = uProjection * vec4(aPos, 1.0);
+    }
+)";
+
+const char *lineFragmentShaderSource = R"(
+    #version 460 core
+    out vec4 FragColor;
+    
+    uniform vec3 uColor;
+    
+    void main()
+    {
+        FragColor = vec4(uColor, 1.0);
+    }
+)";
+
 Renderer::Renderer(GLFWwindow* window) : window(window) {
     initShaders();
-    // This will be a loop over shaders eventually
-    if (basicShaderProgram != 0 & triangleShaderProgram != 0 & framebufferShaderProgram != 0)
+    // This will be a loop over shaders eventually...
+    if (basicShaderProgram != 0 && triangleShaderProgram != 0 &&
+        framebufferShaderProgram != 0 && lineShaderProgram != 0)
         initialized = true;
+    initialized = true;
 }
 
 void Renderer::cleanup() {
-    // Only delete the shader program if it's a valid ID
-    if (basicShaderProgram > 0) {
+    // TODO: Obviously should write a shader abstraction and get an array of Shaders.
+    // Delete shader programs if they're valid IDs
+    if (basicShaderProgram > 0)
+    {
         glDeleteProgram(basicShaderProgram);
     }
+
+    if (triangleShaderProgram > 0)
+    {
+        glDeleteProgram(triangleShaderProgram);
+    }
+
+    if (framebufferShaderProgram > 0)
+    {
+        glDeleteProgram(framebufferShaderProgram);
+    }
+
+    if (lineShaderProgram > 0)
+    {
+        glDeleteProgram(lineShaderProgram);
+    }
+
+    // Clean up framebuffers
+    cleanupFramebuffers();
 }
 
 void Renderer::initShaders() {
     basicShaderProgram = createShaderProgram(basicVertexShaderSource, basicFragmentShaderSource);
     triangleShaderProgram = createShaderProgram(triangleVertexShaderSource, triangleFragmentShaderSource);
     framebufferShaderProgram = createShaderProgram(framebufferVertexShaderSource, framebufferFragmentShaderSource);
+    lineShaderProgram = createShaderProgram(lineVertexShaderSource, lineFragmentShaderSource);
 }
 
 void Renderer::clearFrame(float r, float g, float b, float a) {
@@ -108,6 +155,96 @@ void Renderer::clearFrame(float r, float g, float b, float a) {
 
 void Renderer::setBackgroundColor(float r, float g, float b) {
     backgroundColor = glm::vec3(r, g, b);
+}
+
+void Renderer::renderBoundaryLines(const std::vector<UIRegion> &regions, float lineWidth, glm::vec3 lineColor) {
+    // Get window dimensions
+    int windowWidth, windowHeight;
+    glfwGetFramebufferSize(window, &windowWidth, &windowHeight);
+
+    // Save current OpenGL state
+    GLboolean depthTestEnabled;
+    glGetBooleanv(GL_DEPTH_TEST, &depthTestEnabled);
+    GLfloat originalLineWidth;
+    glGetFloatv(GL_LINE_WIDTH, &originalLineWidth);
+
+    // Disable depth testing for 2D lines and set line width
+    glDisable(GL_DEPTH_TEST);
+    glLineWidth(lineWidth);
+
+    // Use line shader program
+    glUseProgram(lineShaderProgram);
+
+    // Set up orthographic projection matrix (2D)
+    glm::mat4 projection = glm::ortho(0.0f, static_cast<float>(windowWidth),
+                                      static_cast<float>(windowHeight), 0.0f,
+                                      -1.0f, 1.0f);
+
+    // Set shader uniforms
+    unsigned int projectionLoc = glGetUniformLocation(lineShaderProgram, "uProjection");
+    unsigned int colorLoc = glGetUniformLocation(lineShaderProgram, "uColor");
+
+    glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
+    glUniform3fv(colorLoc, 1, glm::value_ptr(lineColor));
+
+    // Create VAO and VBO for lines
+    unsigned int lineVAO, lineVBO;
+    glGenVertexArrays(1, &lineVAO);
+    glGenBuffers(1, &lineVBO);
+
+    // Bind VAO and VBO
+    glBindVertexArray(lineVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, lineVBO);
+
+    // Configure vertex attributes
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0);
+    glEnableVertexAttribArray(0);
+
+    // For each region, draw its boundaries
+    for (const auto &region : regions)
+    {
+        // Calculate screen coordinates
+        float x1 = region.x * windowWidth;
+        float y1 = region.y * windowHeight;
+        float x2 = (region.x + region.width) * windowWidth;
+        float y2 = (region.y + region.height) * windowHeight;
+
+        // Define the 4 lines of the rectangle (8 vertices, 4 lines)
+        float lines[] = {
+            // Line 1: top edge
+            x1, y1, 0.0f,
+            x2, y1, 0.0f,
+
+            // Line 2: right edge
+            x2, y1, 0.0f,
+            x2, y2, 0.0f,
+
+            // Line 3: bottom edge
+            x2, y2, 0.0f,
+            x1, y2, 0.0f,
+
+            // Line 4: left edge
+            x1, y2, 0.0f,
+            x1, y1, 0.0f};
+
+        // Upload line data
+        glBufferData(GL_ARRAY_BUFFER, sizeof(lines), lines, GL_DYNAMIC_DRAW);
+
+        // Draw lines
+        glDrawArrays(GL_LINES, 0, 8);
+    }
+
+    // Clean up
+    glBindVertexArray(0);
+    glDeleteVertexArrays(1, &lineVAO);
+    glDeleteBuffers(1, &lineVBO);
+
+    // Restore original OpenGL state
+    if (depthTestEnabled)
+    {
+        glEnable(GL_DEPTH_TEST);
+    }
+    glLineWidth(originalLineWidth);
 }
 
 void Renderer::renderRegion(const UIRegion& region) {

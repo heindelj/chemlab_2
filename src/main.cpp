@@ -147,12 +147,25 @@ int main() {
         // Then, render all framebuffers to the screen
         for (const auto &region : uiManager.getRegions())
         {
+            // Only rendering main view while I figure out what I'm doing.
             if (region.name == "main_view")
             {
                 renderer.renderRegion(region);
                 renderer.renderFramebufferToScreen(region);
             }
         }
+
+        // Render boundary lines to separate regions
+        const auto &boundarySettings = imguiManager.getBoundaryLineSettings();
+        if (boundarySettings.show)
+        {
+            glm::vec3 lineColor(
+                boundarySettings.color.x,
+                boundarySettings.color.y,
+                boundarySettings.color.z);
+            renderer.renderBoundaryLines(uiManager.getRegions(), boundarySettings.width, lineColor);
+        }
+        //renderer.renderBoundaryLines(uiManager.getRegions(), 2.0f, glm::vec3(0.4f, 0.4f, 0.4f));
 
         // Swap buffers and poll events
         glfwSwapBuffers(window);

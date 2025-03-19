@@ -226,7 +226,15 @@ void ImGuiManager::renderSidebarUI() {
             if (showImPlotDemo) {
                 ImPlot::ShowDemoWindow(&showImPlotDemo);
             }
-            
+
+            // Boundary line settings
+            if (ImGui::TreeNode("Boundary Lines")) {
+                ImGui::Checkbox("Show Boundaries", &boundaryLineSettings.show);
+                ImGui::SliderFloat("Line Width", &boundaryLineSettings.width, 1.0f, 5.0f, "%.1f");
+                ImGui::ColorEdit3("Line Color", (float *)&boundaryLineSettings.color);
+                ImGui::TreePop();
+            }
+
             // Performance settings
             static bool vsync = true;
             if (ImGui::Checkbox("VSync", &vsync)) {
