@@ -4,11 +4,14 @@
 #include <iostream>
 
 // Define the boundary detection threshold (in normalized coordinates)
-const float UIManager::BOUNDARY_THRESHOLD = 0.01f;
+const float UIManager::BOUNDARY_THRESHOLD = 0.015f; // Increased for easier selection
 
 UIManager::UIManager(int screenWidth, int screenHeight)
     : screenWidth(screenWidth), screenHeight(screenHeight)
 {
+    // Start with default boundary positions
+    verticalBoundaryPos = 0.5f;
+    horizontalBoundaryPos = 0.5f;
 }
 
 void UIManager::addRegion(const std::string &name, float x, float y, float width, float height)
@@ -29,6 +32,12 @@ void UIManager::addRegion(const std::string &name, float x, float y, float width
     // Add the region
     regions.emplace_back(name, x, y, width, height);
     regionMap[name] = regions.size() - 1;
+
+    // Update boundary positions when relevant regions are added
+    if (name == "quad_tl" || name == "quad_tr" || name == "quad_bl" || name == "quad_br")
+    {
+        initBoundaryPositions();
+    }
 }
 
 const std::vector<UIRegion> &UIManager::getRegions() const
@@ -68,6 +77,7 @@ void UIManager::setWindow(GLFWwindow *win)
     window = win;
 }
 
+// Improved boundary detection for 2x2 grid structure
 void UIManager::checkBoundaries(double mouseX, double mouseY)
 {
     if (!window)
@@ -77,40 +87,28 @@ void UIManager::checkBoundaries(double mouseX, double mouseY)
     double normalizedX = mouseX / screenWidth;
     double normalizedY = mouseY / screenHeight;
 
-    // Check for vertical boundaries
-    for (size_t i = 0; i < regions.size(); ++i)
+    // Make sure boundary positions are initialized
+    if (verticalBoundaryPos <= 0.0f || horizontalBoundaryPos <= 0.0f)
     {
-        const UIRegion &region = regions[i];
+        initBoundaryPositions();
+    }
 
-        // Right edge
-        float rightEdge = region.x + region.width;
-        if (std::abs(normalizedX - rightEdge) < BOUNDARY_THRESHOLD)
-        {
-            // Found a potential vertical boundary, check if there's a region to the right
-            if (findAdjacentRegions(rightEdge, BoundaryType::Vertical))
-            {
-                // Set the cursor to horizontal resize
-                glfwSetCursor(window, glfwCreateStandardCursor(GLFW_HRESIZE_CURSOR));
-                dragBoundaryType = BoundaryType::Vertical;
-                dragBoundaryPos = rightEdge;
-                return;
-            }
-        }
+    // Check for vertical boundary
+    if (std::abs(normalizedX - verticalBoundaryPos) < BOUNDARY_THRESHOLD)
+    {
+        glfwSetCursor(window, glfwCreateStandardCursor(GLFW_HRESIZE_CURSOR));
+        dragBoundaryType = BoundaryType::Vertical;
+        dragBoundaryPos = verticalBoundaryPos;
+        return;
+    }
 
-        // Bottom edge
-        float bottomEdge = region.y + region.height;
-        if (std::abs(normalizedY - bottomEdge) < BOUNDARY_THRESHOLD)
-        {
-            // Found a potential horizontal boundary, check if there's a region below
-            if (findAdjacentRegions(bottomEdge, BoundaryType::Horizontal))
-            {
-                // Set the cursor to vertical resize
-                glfwSetCursor(window, glfwCreateStandardCursor(GLFW_VRESIZE_CURSOR));
-                dragBoundaryType = BoundaryType::Horizontal;
-                dragBoundaryPos = bottomEdge;
-                return;
-            }
-        }
+    // Check for horizontal boundary
+    if (std::abs(normalizedY - horizontalBoundaryPos) < BOUNDARY_THRESHOLD)
+    {
+        glfwSetCursor(window, glfwCreateStandardCursor(GLFW_VRESIZE_CURSOR));
+        dragBoundaryType = BoundaryType::Horizontal;
+        dragBoundaryPos = horizontalBoundaryPos;
+        return;
     }
 
     // If we're here, we're not over a boundary
@@ -127,86 +125,123 @@ bool UIManager::startDragging(double mouseX, double mouseY)
     if (dragBoundaryType != BoundaryType::None)
     {
         isDragging = true;
+
+        // Store the initial positions and dimensions of all regions for proper resizing
+        initialRegionStates.clear();
+        initialRegionStates.reserve(regions.size());
+        for (const auto &region : regions)
+        {
+            initialRegionStates.push_back({region.name, region.x, region.y, region.width, region.height});
+        }
+
+        // Also store the original boundary position
+        originalBoundaryPos = dragBoundaryPos;
+
         return true;
     }
 
     return false;
 }
 
+// Completely revised dragging logic for 2x2 grid
 void UIManager::updateDragging(double mouseX, double mouseY)
 {
-    if (!isDragging)
+    if (!isDragging || initialRegionStates.empty())
         return;
 
     // Convert mouse position to normalized coordinates
     float normalizedX = static_cast<float>(mouseX / screenWidth);
     float normalizedY = static_cast<float>(mouseY / screenHeight);
 
-    // Constrain to valid range (0-1)
-    normalizedX = std::max(0.0f, std::min(1.0f, normalizedX));
-    normalizedY = std::max(0.0f, std::min(1.0f, normalizedY));
-
-    // Define minimum size for regions (10% of screen)
-    const float MIN_SIZE = 0.1f;
+    // Constrain to valid range (0.1-0.9) to prevent regions from getting too small
+    const float MIN_EDGE = 0.1f;
+    const float MAX_EDGE = 0.9f;
+    normalizedX = std::max(MIN_EDGE, std::min(MAX_EDGE, normalizedX));
+    normalizedY = std::max(MIN_EDGE, std::min(MAX_EDGE, normalizedY));
 
     if (dragBoundaryType == BoundaryType::Vertical)
     {
-        // Don't allow resizing if it would make a region too small
-        if (normalizedX < regions[leftRegionIndex].x + MIN_SIZE ||
-            normalizedX > regions[rightRegionIndex].x + regions[rightRegionIndex].width - MIN_SIZE)
-        {
-            return;
-        }
+        // Find the indices of all regions
+        size_t tlIndex = getRegionIndex("quad_tl");
+        size_t trIndex = getRegionIndex("quad_tr");
+        size_t blIndex = getRegionIndex("quad_bl");
+        size_t brIndex = getRegionIndex("quad_br");
 
-        // Calculate size changes
-        float oldBoundary = dragBoundaryPos;
-        float newBoundary = normalizedX;
-        float deltaWidth = newBoundary - oldBoundary;
+        // Use stored original boundary position
+        float originalCenter = originalBoundaryPos;
+        float newCenter = normalizedX;
 
-        // Resize left region (increase width)
-        UIRegion &leftRegion = regions[leftRegionIndex];
-        leftRegion.width += deltaWidth;
+        // Update top-left region (width)
+        UIRegion &tlRegion = regions[tlIndex];
+        tlRegion.width = initialRegionStates[tlIndex].width + (newCenter - originalCenter);
 
-        // Resize right region (decrease width and move)
-        UIRegion &rightRegion = regions[rightRegionIndex];
-        rightRegion.x += deltaWidth;
-        rightRegion.width -= deltaWidth;
+        // Update top-right region (x and width)
+        UIRegion &trRegion = regions[trIndex];
+        trRegion.x = newCenter;
+        trRegion.width = 1.0f - newCenter - (1.0f - (initialRegionStates[trIndex].x + initialRegionStates[trIndex].width));
 
-        // Update the boundary position
-        dragBoundaryPos = newBoundary;
+        // Update bottom-left region (width)
+        UIRegion &blRegion = regions[blIndex];
+        blRegion.width = initialRegionStates[blIndex].width + (newCenter - originalCenter);
+
+        // Update bottom-right region (x and width)
+        UIRegion &brRegion = regions[brIndex];
+        brRegion.x = newCenter;
+        brRegion.width = 1.0f - newCenter - (1.0f - (initialRegionStates[brIndex].x + initialRegionStates[brIndex].width));
+
+        // Update drag position and vertical boundary position
+        dragBoundaryPos = newCenter;
+        verticalBoundaryPos = newCenter;
     }
     else if (dragBoundaryType == BoundaryType::Horizontal)
     {
-        // Don't allow resizing if it would make a region too small
-        if (normalizedY < regions[topRegionIndex].y + MIN_SIZE ||
-            normalizedY > regions[bottomRegionIndex].y + regions[bottomRegionIndex].height - MIN_SIZE)
-        {
-            return;
-        }
+        // Find the indices of all regions
+        size_t tlIndex = getRegionIndex("quad_tl");
+        size_t trIndex = getRegionIndex("quad_tr");
+        size_t blIndex = getRegionIndex("quad_bl");
+        size_t brIndex = getRegionIndex("quad_br");
 
-        // Calculate size changes
-        float oldBoundary = dragBoundaryPos;
-        float newBoundary = normalizedY;
-        float deltaHeight = newBoundary - oldBoundary;
+        // Use stored original boundary position
+        float originalCenter = originalBoundaryPos;
+        float newCenter = normalizedY;
 
-        // Resize top region (increase height)
-        UIRegion &topRegion = regions[topRegionIndex];
-        topRegion.height += deltaHeight;
+        // Update top-left region (height)
+        UIRegion &tlRegion = regions[tlIndex];
+        tlRegion.height = initialRegionStates[tlIndex].height + (newCenter - originalCenter);
 
-        // Resize bottom region (decrease height and move)
-        UIRegion &bottomRegion = regions[bottomRegionIndex];
-        bottomRegion.y += deltaHeight;
-        bottomRegion.height -= deltaHeight;
+        // Update top-right region (height)
+        UIRegion &trRegion = regions[trIndex];
+        trRegion.height = initialRegionStates[trIndex].height + (newCenter - originalCenter);
 
-        // Update the boundary position
-        dragBoundaryPos = newBoundary;
+        // Update bottom-left region (y and height)
+        UIRegion &blRegion = regions[blIndex];
+        blRegion.y = newCenter;
+        blRegion.height = 1.0f - newCenter - (1.0f - (initialRegionStates[blIndex].y + initialRegionStates[blIndex].height));
+
+        // Update bottom-right region (y and height)
+        UIRegion &brRegion = regions[brIndex];
+        brRegion.y = newCenter;
+        brRegion.height = 1.0f - newCenter - (1.0f - (initialRegionStates[brIndex].y + initialRegionStates[brIndex].height));
+
+        // Update drag position and horizontal boundary position
+        dragBoundaryPos = newCenter;
+        horizontalBoundaryPos = newCenter;
     }
+
+    // Debug prints for troubleshooting
+    std::cout << "Dragging " << (dragBoundaryType == BoundaryType::Vertical ? "vertical" : "horizontal")
+              << " boundary from " << originalBoundaryPos
+              << " to " << (dragBoundaryType == BoundaryType::Vertical ? normalizedX : normalizedY) << std::endl;
 }
 
 void UIManager::endDragging()
 {
     isDragging = false;
     dragBoundaryType = BoundaryType::None;
+    initialRegionStates.clear();
+
+    // Update boundary positions after dragging completes
+    initBoundaryPositions();
 
     // Reset cursor
     if (window)
@@ -215,60 +250,23 @@ void UIManager::endDragging()
     }
 }
 
-bool UIManager::findAdjacentRegions(float boundaryPos, BoundaryType type)
+// Initialize boundary positions from quad regions
+void UIManager::initBoundaryPositions()
 {
-    if (type == BoundaryType::Vertical)
+    // Find the quad_tl region to determine boundary positions
+    const UIRegion *tlRegion = getRegion("quad_tl");
+
+    if (tlRegion)
     {
-        // Find regions on the left and right of the vertical boundary
-        leftRegionIndex = -1;
-        rightRegionIndex = -1;
+        // Right edge of top-left region is the vertical boundary
+        verticalBoundaryPos = tlRegion->x + tlRegion->width;
 
-        for (size_t i = 0; i < regions.size(); ++i)
-        {
-            const UIRegion &region = regions[i];
+        // Bottom edge of top-left region is the horizontal boundary
+        horizontalBoundaryPos = tlRegion->y + tlRegion->height;
 
-            // Region has right edge at the boundary
-            if (std::abs((region.x + region.width) - boundaryPos) < BOUNDARY_THRESHOLD)
-            {
-                leftRegionIndex = i;
-            }
-
-            // Region has left edge at the boundary
-            if (std::abs(region.x - boundaryPos) < BOUNDARY_THRESHOLD)
-            {
-                rightRegionIndex = i;
-            }
-        }
-
-        return (leftRegionIndex != -1 && rightRegionIndex != -1);
+        std::cout << "Updated boundary positions: vertical=" << verticalBoundaryPos
+                  << ", horizontal=" << horizontalBoundaryPos << std::endl;
     }
-    else if (type == BoundaryType::Horizontal)
-    {
-        // Find regions above and below the horizontal boundary
-        topRegionIndex = -1;
-        bottomRegionIndex = -1;
-
-        for (size_t i = 0; i < regions.size(); ++i)
-        {
-            const UIRegion &region = regions[i];
-
-            // Region has bottom edge at the boundary
-            if (std::abs((region.y + region.height) - boundaryPos) < BOUNDARY_THRESHOLD)
-            {
-                topRegionIndex = i;
-            }
-
-            // Region has top edge at the boundary
-            if (std::abs(region.y - boundaryPos) < BOUNDARY_THRESHOLD)
-            {
-                bottomRegionIndex = i;
-            }
-        }
-
-        return (topRegionIndex != -1 && bottomRegionIndex != -1);
-    }
-
-    return false;
 }
 
 void UIManager::updateRegion(size_t index, float x, float y, float width, float height)
@@ -277,7 +275,7 @@ void UIManager::updateRegion(size_t index, float x, float y, float width, float 
     {
         throw std::out_of_range("Region index out of range");
     }
-
+    
     // Check for invalid dimensions
     if (x < 0.0f || x > 1.0f || y < 0.0f || y > 1.0f ||
         width <= 0.0f || height <= 0.0f || x + width > 1.0f || y + height > 1.0f)

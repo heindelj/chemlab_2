@@ -36,6 +36,10 @@ public:
     // Update a region's dimensions
     void updateRegion(size_t index, float x, float y, float width, float height);
 
+    // Method to get the current boundary positions
+    float getVerticalBoundaryPosition() const { return verticalBoundaryPos; }
+    float getHorizontalBoundaryPosition() const { return horizontalBoundaryPos; }
+
     int screenWidth;
     int screenHeight;
     std::vector<UIRegion> regions;
@@ -44,24 +48,32 @@ public:
 private:
     // Boundary detection and dragging
     static const float BOUNDARY_THRESHOLD;
-    enum class BoundaryType
-    {
+    enum class BoundaryType {
         None,
         Vertical,
         Horizontal
     };
 
+    // Structure to store the initial state of regions during drag operations
+    struct RegionState {
+        std::string name;
+        float x;
+        float y;
+        float width;
+        float height;
+    };
+    std::vector<RegionState> initialRegionStates;
+
     GLFWwindow *window = nullptr;
     bool isDragging = false;
     BoundaryType dragBoundaryType = BoundaryType::None;
     float dragBoundaryPos = 0.0f;
+    float originalBoundaryPos = 0.0f;
 
-    // Adjacent regions affected by dragging
-    size_t leftRegionIndex = 0;
-    size_t rightRegionIndex = 0;
-    size_t topRegionIndex = 0;
-    size_t bottomRegionIndex = 0;
+    // Store the current positions of boundaries for consistent drawing
+    float verticalBoundaryPos = 0.5f;   // X position of vertical boundary (normalized)
+    float horizontalBoundaryPos = 0.5f; // Y position of horizontal boundary (normalized)
 
-    // Helper function to find regions on either side of a boundary
-    bool findAdjacentRegions(float boundaryPos, BoundaryType type);
+    // Method to initialize boundary positions based on regions
+    void initBoundaryPositions();
 };

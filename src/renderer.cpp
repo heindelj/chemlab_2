@@ -830,54 +830,14 @@ void Renderer::drawGridLines() {
 
     // Set line color (white with some transparency)
     GLint colorLoc = glGetUniformLocation(lineShaderProgram, "uColor");
-    glUniform4f(colorLoc, 1.0f, 1.0f, 1.0f, 0.7f);
-
-    // Find the horizontal and vertical boundary positions
-    float horizontalBoundaryY = 0.0f;
-    float verticalBoundaryX = 0.0f;
-    bool foundHorizontal = false;
-    bool foundVertical = false;
+    glUniform4f(colorLoc, 1.0f, 1.0f, 1.0f, 1.0f);
 
     // Get the boundaries from the regions
     const auto &regions = uiManager->getRegions();
 
-    // Find quad_tl and get its bottom/right edges
-    for (const auto &region : regions)
-    {
-        if (region.name == "quad_tl")
-        {
-            // The right edge of quad_tl is the vertical boundary
-            verticalBoundaryX = (region.x + region.width) * width;
-            foundVertical = true;
-
-            // The bottom edge of quad_tl is the horizontal boundary
-            horizontalBoundaryY = (1.0f - (region.y + region.height)) * height;
-            foundHorizontal = true;
-
-            break;
-        }
-    }
-
-    // If we didn't find the boundaries from regions, use screen center as fallback
-    if (!foundHorizontal)
-    {
-        horizontalBoundaryY = height / 2.0f;
-    }
-
-    if (!foundVertical)
-    {
-        verticalBoundaryX = width / 2.0f;
-    }
-
-    // Draw vertical line
-    float verticalLineVertices[] = {
-        verticalBoundaryX, 0.0f,
-        verticalBoundaryX, static_cast<float>(height)};
-
-    // Draw horizontal line
-    float horizontalLineVertices[] = {
-        0.0f, horizontalBoundaryY,
-        static_cast<float>(width), horizontalBoundaryY};
+    // Get current boundary positions from UI manager
+    float verticalBoundaryX = uiManager->getVerticalBoundaryPosition() * width;
+    float horizontalBoundaryY = uiManager->getHorizontalBoundaryPosition() * height;
 
     // Set up VAO/VBO for lines
     unsigned int lineVAO, lineVBO;
@@ -886,6 +846,8 @@ void Renderer::drawGridLines() {
 
     glBindVertexArray(lineVAO);
     glBindBuffer(GL_ARRAY_BUFFER, lineVBO);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void *)0);
+    glEnableVertexAttribArray(0);
 
     // Enable blending for transparent lines
     GLboolean blendEnabled;
@@ -893,24 +855,24 @@ void Renderer::drawGridLines() {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    // Vertical line
-    glBufferData(GL_ARRAY_BUFFER, sizeof(verticalLineVertices), verticalLineVertices, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void *)0);
-    glEnableVertexAttribArray(0);
-
     // Enable line smoothing and set line width
     glEnable(GL_LINE_SMOOTH);
     glLineWidth(2.0f);
 
     // Draw vertical line
+    float verticalLineVertices[] = {
+        verticalBoundaryX, 0.0f,
+        verticalBoundaryX, static_cast<float>(height)};
+
+    glBufferData(GL_ARRAY_BUFFER, sizeof(verticalLineVertices), verticalLineVertices, GL_STATIC_DRAW);
     glDrawArrays(GL_LINES, 0, 2);
 
-    // Horizontal line
-    glBufferData(GL_ARRAY_BUFFER, sizeof(horizontalLineVertices), horizontalLineVertices, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void *)0);
-    glEnableVertexAttribArray(0);
-
     // Draw horizontal line
+    float horizontalLineVertices[] = {
+        0.0f, horizontalBoundaryY,
+        static_cast<float>(width), horizontalBoundaryY};
+
+    glBufferData(GL_ARRAY_BUFFER, sizeof(horizontalLineVertices), horizontalLineVertices, GL_STATIC_DRAW);
     glDrawArrays(GL_LINES, 0, 2);
 
     // Clean up

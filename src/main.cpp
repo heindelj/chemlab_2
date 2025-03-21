@@ -104,7 +104,7 @@ void cursor_position_callback(GLFWwindow *window, double xpos, double ypos)
         // Update dragging if mouse is pressed
         appData->uiManager->updateDragging(xpos, ypos);
 
-        // Update framebuffers for all regions
+        // After updating regions, recreate all framebuffers to match the new sizes
         for (const auto &region : appData->uiManager->getRegions())
         {
             appData->renderer->resizeFramebuffer(&region,
