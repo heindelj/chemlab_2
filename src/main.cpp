@@ -8,6 +8,8 @@
 struct AppData {
     UIManager *uiManager;
     Renderer *renderer;
+    ImGuiManager *imguiManager;
+    bool mousePressed = false;
 };
 
 // Window dimensions
@@ -34,6 +36,67 @@ void framebuffer_size_callback(GLFWwindow *window, int width, int height)
         for (const auto &region : appData->uiManager->getRegions()) {
             appData->renderer->resizeFramebuffer(&region, width, height);
         }
+    }
+}
+
+// Mouse button callback
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
+    // Get app data
+    void* ptr = glfwGetWindowUserPointer(window);
+    if (!ptr) return;
+    
+    AppData* appData = static_cast<AppData*>(ptr);
+    
+    // Pass event to ImGui first
+    ImGuiIO& io = ImGui::GetIO();
+    if (io.WantCaptureMouse) {
+        return;  // ImGui is using the mouse, don't handle the event
+    }
+    
+    // Handle mouse button events for boundary dragging
+    if (button == GLFW_MOUSE_BUTTON_LEFT) {
+        if (action == GLFW_PRESS) {
+            double mouseX, mouseY;
+            glfwGetCursorPos(window, &mouseX, &mouseY);
+            
+            // Try to start dragging
+            if (appData->uiManager->startDragging(mouseX, mouseY)) {
+                appData->mousePressed = true;
+            }
+        } else if (action == GLFW_RELEASE) {
+            appData->mousePressed = false;
+            appData->uiManager->endDragging();
+        }
+    }
+}
+
+// Cursor position callback
+void cursor_position_callback(GLFWwindow* window, double xpos, double ypos) {
+    // Get app data
+    void* ptr = glfwGetWindowUserPointer(window);
+    if (!ptr) return;
+    
+    AppData* appData = static_cast<AppData*>(ptr);
+    
+    // Pass event to ImGui first
+    ImGuiIO& io = ImGui::GetIO();
+    if (io.WantCaptureMouse) {
+        return;  // ImGui is using the mouse, don't handle the event
+    }
+    
+    if (appData->mousePressed) {
+        // Update dragging if mouse is pressed
+        appData->uiManager->updateDragging(xpos, ypos);
+        
+        // Update framebuffers for all regions
+        for (const auto& region : appData->uiManager->getRegions()) {
+            appData->renderer->resizeFramebuffer(&region, 
+                                               appData->uiManager->screenWidth,
+                                               appData->uiManager->screenHeight);
+        }
+    } else {
+        // Check boundaries when mouse moves (for cursor change)
+        appData->uiManager->checkBoundaries(xpos, ypos);
     }
 }
 
@@ -102,35 +165,47 @@ int main() {
     
     // Create UI manager - will handle regions and UI components
     UIManager uiManager(SCR_WIDTH, SCR_HEIGHT);
-    
-    // Create AppData for callbacks
-    AppData appData;
-    appData.uiManager = &uiManager;
-    appData.renderer = &renderer;
-    glfwSetWindowUserPointer(window, &appData);
-
-    // Set up UI regions (example: split screen into main view and sidebar)
-    uiManager.addRegion("main_view", 0.0f, 0.0f, 0.8f, 1.0f); // x, y, width, height (normalized 0-1)
-    uiManager.addRegion("sidebar", 0.8f, 0.0f, 0.2f, 1.0f);
-    uiManager.addRegion("status", 0.0f, 0.9f, 0.8f, 0.1f);
+    uiManager.setWindow(window);  // Set the window for cursor changes
     
     // Initialize ImGui Manager
     ImGuiManager imguiManager(window);
-    if (imguiManager.init()) {
+    if (!imguiManager.init()) {
+        std::cerr << "Failed to initialize ImGui. Continuing without ImGui support." << std::endl;
+    } else {
         std::cout << "ImGui initialized successfully." << std::endl;
         
         // Add example molecule info
         imguiManager.setMoleculeInfo("Caffeine", 24, 1.2f);
         imguiManager.setAppStatus("Ready to analyze molecules");
-    } else {
-        std::cerr << "Failed to initialize ImGui. Continuing without ImGui support." << std::endl;
     }
+    
+    // Create AppData for callbacks
+    AppData appData;
+    appData.uiManager = &uiManager;
+    appData.renderer = &renderer;
+    appData.imguiManager = &imguiManager;
+    glfwSetWindowUserPointer(window, &appData);
+    
+    // Set mouse callbacks
+    glfwSetMouseButtonCallback(window, mouse_button_callback);
+    glfwSetCursorPosCallback(window, cursor_position_callback);
+
+    // Set up UI regions - create a 2x2 grid of regions for the triangles
+    uiManager.addRegion("quad_tl", 0.0f, 0.0f, 0.5f, 0.5f);  // Top-left
+    uiManager.addRegion("quad_tr", 0.5f, 0.0f, 0.5f, 0.5f);  // Top-right
+    uiManager.addRegion("quad_bl", 0.0f, 0.5f, 0.5f, 0.5f);  // Bottom-left
+    uiManager.addRegion("quad_br", 0.5f, 0.5f, 0.5f, 0.5f);  // Bottom-right
     
     // Enable vsync
     glfwSwapInterval(1);
     
     // Enable depth testing
     glEnable(GL_DEPTH_TEST);
+    
+    // Create framebuffers for all regions
+    for (const auto& region : uiManager.getRegions()) {
+        renderer.createFramebufferForRegion(region);
+    }
     
     // Render loop
     while (!glfwWindowShouldClose(window)) {
@@ -141,31 +216,21 @@ int main() {
         glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+        // Start ImGui frame
         imguiManager.newFrame();
+        
+        // Render all regions to their framebuffers
+        for (const auto &region : uiManager.getRegions()) {
+            renderer.renderRegion(region);
+        }
+        
+        // Render all framebuffers to the screen
+        for (const auto &region : uiManager.getRegions()) {
+            renderer.renderFramebufferToScreen(region);
+        }
+        
+        // Render ImGui
         imguiManager.render();
-
-        // Then, render all framebuffers to the screen
-        for (const auto &region : uiManager.getRegions())
-        {
-            // Only rendering main view while I figure out what I'm doing.
-            if (region.name == "main_view")
-            {
-                renderer.renderRegion(region);
-                renderer.renderFramebufferToScreen(region);
-            }
-        }
-
-        // Render boundary lines to separate regions
-        const auto &boundarySettings = imguiManager.getBoundaryLineSettings();
-        if (boundarySettings.show)
-        {
-            glm::vec3 lineColor(
-                boundarySettings.color.x,
-                boundarySettings.color.y,
-                boundarySettings.color.z);
-            renderer.renderBoundaryLines(uiManager.getRegions(), boundarySettings.width, lineColor);
-        }
-        //renderer.renderBoundaryLines(uiManager.getRegions(), 2.0f, glm::vec3(0.4f, 0.4f, 0.4f));
 
         // Swap buffers and poll events
         glfwSwapBuffers(window);
@@ -173,6 +238,7 @@ int main() {
     }
     
     // Clean up
+    renderer.cleanupFramebuffers();
     renderer.cleanup();
     imguiManager.shutdown();
     glfwTerminate();

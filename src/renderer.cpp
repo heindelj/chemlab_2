@@ -285,9 +285,11 @@ void Renderer::renderRegion(const UIRegion& region) {
         glUseProgram(triangleShaderProgram);
 
         float timeValue = glfwGetTime();
+        float redValue = (sin(timeValue) / 2.0f + 3.14159f / 3.0f) + 0.5f;
         float greenValue = (sin(timeValue) / 2.0f) + 0.5f;
+        float blueValue = (sin(timeValue) / 2.0f + 2 * 3.14159f / 3.0f) + 0.5f;
         int vertexColorLocation = glGetUniformLocation(triangleShaderProgram, "u_Color");
-        glUniform4f(vertexColorLocation, 0.0f, greenValue, 0.0f, 1.0f);
+        glUniform4f(vertexColorLocation, redValue, greenValue, blueValue, 1.0f);
 
         glDrawArrays(GL_TRIANGLES, 0, 3);
 

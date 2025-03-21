@@ -53,8 +53,7 @@ public:
         float radius = 1.0f;
     } moleculeInfo;
 
-    struct BoundaryLineSettings
-    {
+    struct BoundaryLineSettings {
         bool show = true;
         float width = 2.0f;
         ImVec4 color = ImVec4(0.4f, 0.4f, 0.4f, 1.0f);
