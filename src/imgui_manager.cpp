@@ -107,7 +107,7 @@ bool ImGuiManager::init()
     io.ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange;
 
     // Setup Platform/Renderer backends
-    ImGui_ImplGlfw_InitForOpenGL(window, false);
+    ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 460");
 
     // Setup style
@@ -146,6 +146,66 @@ void ImGuiManager::newFrame()
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
+
+    // TODO: It would be nice to write all of my callback
+    // functionality in actual functions and then just call them
+    // here when ImGui isn't doing it's own thing.
+
+    // Get app data
+    void *ptr = glfwGetWindowUserPointer(window);
+    if (ptr)
+    {
+        AppData *appData = static_cast<AppData *>(ptr);
+        ImGuiIO &io = ImGui::GetIO();
+
+        // Handle boundary dragging after ImGui has processed input
+        if (!io.WantCaptureMouse)
+        {
+            // Get mouse state
+            double mouseX, mouseY;
+            glfwGetCursorPos(window, &mouseX, &mouseY);
+
+            // If mouse is pressed, handle dragging
+            if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS)
+            {
+                if (!appData->mousePressed)
+                {
+                    // Start dragging when first pressed
+                    if (appData->uiManager->startDragging(mouseX, mouseY))
+                    {
+                        appData->mousePressed = true;
+                    }
+                }
+                else
+                {
+                    // Continue dragging if already dragging
+                    appData->uiManager->updateDragging(mouseX, mouseY);
+
+                    // Update framebuffers after dragging
+                    for (const auto &region : appData->uiManager->getRegions())
+                    {
+                        if (region.name != "sidebar" && region.name != "status")
+                        {
+                            appData->renderer->resizeFramebuffer(&region,
+                                                                 appData->uiManager->screenWidth,
+                                                                 appData->uiManager->screenHeight);
+                        }
+                    }
+                }
+            }
+            else if (appData->mousePressed)
+            {
+                // Mouse button released
+                appData->mousePressed = false;
+                appData->uiManager->endDragging();
+            }
+            else
+            {
+                // Just hovering, check boundaries
+                appData->uiManager->checkBoundaries(mouseX, mouseY);
+            }
+        }
+    }
 
     // Create an invisible dockspace (we're using our custom regions)
     ImGuiViewport *viewport = ImGui::GetMainViewport();

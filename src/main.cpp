@@ -43,72 +43,6 @@ void framebuffer_size_callback(GLFWwindow *window, int width, int height)
     }
 }
 
-void mouse_button_callback(GLFWwindow *window, int button, int action, int mods)
-{
-    // Get app data
-    void *ptr = glfwGetWindowUserPointer(window);
-    if (!ptr)
-        return;
-
-    AppData *appData = static_cast<AppData *>(ptr);
-
-    // Since this callback is only invoked when ImGui doesn't want the mouse,
-    // we can simplify our logic and just focus on the main rendering area
-    if (button == GLFW_MOUSE_BUTTON_LEFT)
-    {
-        if (action == GLFW_PRESS)
-        {
-            double mouseX, mouseY;
-            glfwGetCursorPos(window, &mouseX, &mouseY);
-
-            // Try to start dragging
-            if (appData->uiManager->startDragging(mouseX, mouseY))
-            {
-                appData->mousePressed = true;
-            }
-        }
-        else if (action == GLFW_RELEASE)
-        {
-            appData->mousePressed = false;
-            appData->uiManager->endDragging();
-        }
-    }
-}
-
-void cursor_position_callback(GLFWwindow *window, double xpos, double ypos)
-{
-    // Get app data
-    void *ptr = glfwGetWindowUserPointer(window);
-    if (!ptr)
-        return;
-
-    AppData *appData = static_cast<AppData *>(ptr);
-
-    // Since this callback is only invoked when ImGui doesn't want the mouse,
-    // we can simplify our logic
-    if (appData->mousePressed)
-    {
-        // Update dragging if mouse is pressed
-        appData->uiManager->updateDragging(xpos, ypos);
-
-        // After updating regions, recreate all framebuffers to match the new sizes
-        for (const auto &region : appData->uiManager->getRegions())
-        {
-            if (region.name != "sidebar" && region.name != "status")
-            {
-                appData->renderer->resizeFramebuffer(&region,
-                                                     appData->uiManager->screenWidth,
-                                                     appData->uiManager->screenHeight);
-            }
-        }
-    }
-    else
-    {
-        // Check boundaries when mouse moves (for cursor change)
-        appData->uiManager->checkBoundaries(xpos, ypos);
-    }
-}
-
 // Process input
 void processInput(GLFWwindow *window)
 {
@@ -225,10 +159,6 @@ int main()
         imguiManager.setAppStatus("Ready to analyze molecules");
     }
 
-    // Store original callbacks
-    glfwSetMouseButtonCallback(window, mouse_button_callback);
-    glfwSetCursorPosCallback(window, cursor_position_callback);
-
     // Create AppData for callbacks
     AppData appData;
     appData.uiManager = &uiManager;
@@ -251,25 +181,33 @@ int main()
     // Render loop
     while (!glfwWindowShouldClose(window))
     {
-        // Process input
+        // Process keyboard input only (mouse is handled by ImGui)
         processInput(window);
 
         // Clear the screen
         glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        // Start ImGui frame
+        // Start ImGui frame - mouse event handling now happens in here
         imguiManager.newFrame();
 
-        // Render all regions to their framebuffers
+        // Render quad regions to their framebuffers
         for (const auto &region : uiManager.getRegions())
         {
+            // Skip ImGui regions
+            if (region.name == "sidebar" || region.name == "status")
+                continue;
+
             renderer.renderRegion(region);
         }
 
         // Render all framebuffers to the screen
         for (const auto &region : uiManager.getRegions())
         {
+            // Skip ImGui regions
+            if (region.name == "sidebar" || region.name == "status")
+                continue;
+
             renderer.renderFramebufferToScreen(region);
         }
 
