@@ -3,6 +3,77 @@
 #include "renderer.h"
 #include <iostream>
 
+GLFWmousebuttonfun ImGuiManager::OrigMouseButtonCallback = nullptr;
+GLFWcursorposfun ImGuiManager::OrigCursorPosCallback = nullptr;
+GLFWscrollfun ImGuiManager::OrigScrollCallback = nullptr;
+GLFWkeyfun ImGuiManager::OrigKeyCallback = nullptr;
+GLFWcharfun ImGuiManager::OrigCharCallback = nullptr;
+
+void ImGuiManager::ImGuiMouseButtonCallback(GLFWwindow *window, int button, int action, int mods)
+{
+    // Process through ImGui
+    ImGui_ImplGlfw_MouseButtonCallback(window, button, action, mods);
+
+    // Check if ImGui wants to use this event
+    ImGuiIO &io = ImGui::GetIO();
+    if (!io.WantCaptureMouse && OrigMouseButtonCallback != nullptr)
+    {
+        OrigMouseButtonCallback(window, button, action, mods);
+    }
+}
+
+void ImGuiManager::ImGuiCursorPosCallback(GLFWwindow *window, double xpos, double ypos)
+{
+    // Process through ImGui
+    ImGui_ImplGlfw_CursorPosCallback(window, xpos, ypos);
+
+    // Check if ImGui wants to use this event
+    ImGuiIO &io = ImGui::GetIO();
+    if (!io.WantCaptureMouse && OrigCursorPosCallback != nullptr)
+    {
+        OrigCursorPosCallback(window, xpos, ypos);
+    }
+}
+
+void ImGuiManager::ImGuiScrollCallback(GLFWwindow *window, double xoffset, double yoffset)
+{
+    // Process through ImGui
+    ImGui_ImplGlfw_ScrollCallback(window, xoffset, yoffset);
+
+    // Check if ImGui wants to use this event
+    ImGuiIO &io = ImGui::GetIO();
+    if (!io.WantCaptureMouse && OrigScrollCallback != nullptr)
+    {
+        OrigScrollCallback(window, xoffset, yoffset);
+    }
+}
+
+void ImGuiManager::ImGuiKeyCallback(GLFWwindow *window, int key, int scancode, int action, int mods)
+{
+    // Process through ImGui
+    ImGui_ImplGlfw_KeyCallback(window, key, scancode, action, mods);
+
+    // Check if ImGui wants to use this event
+    ImGuiIO &io = ImGui::GetIO();
+    if (!io.WantCaptureKeyboard && OrigKeyCallback != nullptr)
+    {
+        OrigKeyCallback(window, key, scancode, action, mods);
+    }
+}
+
+void ImGuiManager::ImGuiCharCallback(GLFWwindow *window, unsigned int c)
+{
+    // Process through ImGui
+    ImGui_ImplGlfw_CharCallback(window, c);
+
+    // Check if ImGui wants to use this event
+    ImGuiIO &io = ImGui::GetIO();
+    if (!io.WantCaptureKeyboard && OrigCharCallback != nullptr)
+    {
+        OrigCharCallback(window, c);
+    }
+}
+
 // Forward declaration of AppData structure from main.cpp
 struct AppData
 {
@@ -32,9 +103,11 @@ bool ImGuiManager::init()
     // Enable keyboard controls, docking, and viewports
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
+    io.ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange;
 
     // Setup Platform/Renderer backends
-    ImGui_ImplGlfw_InitForOpenGL(window, true);
+    ImGui_ImplGlfw_InitForOpenGL(window, false);
     ImGui_ImplOpenGL3_Init("#version 460");
 
     // Setup style
@@ -180,7 +253,8 @@ void ImGuiManager::renderSidebarUI()
 
     // Create sidebar window without typical window decorations
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize |
-                             ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar;
+                             ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar |
+                             ImGuiWindowFlags_NoBringToFrontOnFocus;
 
     if (ImGui::Begin("Sidebar", nullptr, flags))
     {
@@ -326,6 +400,12 @@ void ImGuiManager::renderStatusUI()
         ImGui::SameLine(ImGui::GetWindowWidth() - 120);
         ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
     }
+
+    // Debug info
+    ImGui::SameLine(ImGui::GetWindowWidth() - 480);
+    ImGuiIO &io = ImGui::GetIO();
+    ImGui::Text("ImGui WantCaptureMouse: %s", io.WantCaptureMouse ? "true" : "false");
+
     ImGui::End();
     ImGui::PopStyleVar();
 }

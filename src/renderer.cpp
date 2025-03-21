@@ -108,11 +108,11 @@ const char *lineFragmentShaderSource = R"(
     #version 460 core
     out vec4 FragColor;
     
-    uniform vec3 uColor;
+    uniform vec4 uColor;
     
     void main()
     {
-        FragColor = vec4(uColor, 1.0);
+        FragColor = uColor;
     }
 )";
 
@@ -596,6 +596,12 @@ void Renderer::renderFramebufferToScreen(const UIRegion &region)
         return;
     }
 
+    // Skip rendering for ImGui regions since they're handled differently
+    if (region.name == "sidebar" || region.name == "status")
+    {
+        return;
+    }
+
     // Get window dimensions
     int windowWidth, windowHeight;
     glfwGetFramebufferSize(window, &windowWidth, &windowHeight);
@@ -839,6 +845,10 @@ void Renderer::drawGridLines() {
     float verticalBoundaryX = uiManager->getVerticalBoundaryPosition() * width;
     float horizontalBoundaryY = uiManager->getHorizontalBoundaryPosition() * height;
 
+    // Get the sidebar and status bar regions to determine available area
+    const UIRegion *sidebarRegion = uiManager->getRegion("sidebar");
+    const UIRegion *statusRegion = uiManager->getRegion("status");
+
     // Set up VAO/VBO for lines
     unsigned int lineVAO, lineVBO;
     glGenVertexArrays(1, &lineVAO);
@@ -859,7 +869,8 @@ void Renderer::drawGridLines() {
     glEnable(GL_LINE_SMOOTH);
     glLineWidth(2.0f);
 
-    // Draw vertical line
+    // Draw vertical line - use the sidebox region to determine max height
+    float maxHeight = (statusRegion ? statusRegion->y * height : height);
     float verticalLineVertices[] = {
         verticalBoundaryX, 0.0f,
         verticalBoundaryX, static_cast<float>(height)};
@@ -867,7 +878,8 @@ void Renderer::drawGridLines() {
     glBufferData(GL_ARRAY_BUFFER, sizeof(verticalLineVertices), verticalLineVertices, GL_STATIC_DRAW);
     glDrawArrays(GL_LINES, 0, 2);
 
-    // Draw horizontal line
+    // Draw horizontal line - use the sidebar region to determine max width
+    float maxWidth = (sidebarRegion ? sidebarRegion->x * width : width);
     float horizontalLineVertices[] = {
         0.0f, horizontalBoundaryY,
         static_cast<float>(width), horizontalBoundaryY};

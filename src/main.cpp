@@ -43,7 +43,6 @@ void framebuffer_size_callback(GLFWwindow *window, int width, int height)
     }
 }
 
-// Mouse button callback
 void mouse_button_callback(GLFWwindow *window, int button, int action, int mods)
 {
     // Get app data
@@ -53,14 +52,8 @@ void mouse_button_callback(GLFWwindow *window, int button, int action, int mods)
 
     AppData *appData = static_cast<AppData *>(ptr);
 
-    // Pass event to ImGui first
-    ImGuiIO &io = ImGui::GetIO();
-    if (io.WantCaptureMouse)
-    {
-        return; // ImGui is using the mouse, don't handle the event
-    }
-
-    // Handle mouse button events for boundary dragging
+    // Since this callback is only invoked when ImGui doesn't want the mouse,
+    // we can simplify our logic and just focus on the main rendering area
     if (button == GLFW_MOUSE_BUTTON_LEFT)
     {
         if (action == GLFW_PRESS)
@@ -82,7 +75,6 @@ void mouse_button_callback(GLFWwindow *window, int button, int action, int mods)
     }
 }
 
-// Cursor position callback
 void cursor_position_callback(GLFWwindow *window, double xpos, double ypos)
 {
     // Get app data
@@ -92,13 +84,8 @@ void cursor_position_callback(GLFWwindow *window, double xpos, double ypos)
 
     AppData *appData = static_cast<AppData *>(ptr);
 
-    // Pass event to ImGui first
-    ImGuiIO &io = ImGui::GetIO();
-    if (io.WantCaptureMouse)
-    {
-        return; // ImGui is using the mouse, don't handle the event
-    }
-
+    // Since this callback is only invoked when ImGui doesn't want the mouse,
+    // we can simplify our logic
     if (appData->mousePressed)
     {
         // Update dragging if mouse is pressed
@@ -107,9 +94,12 @@ void cursor_position_callback(GLFWwindow *window, double xpos, double ypos)
         // After updating regions, recreate all framebuffers to match the new sizes
         for (const auto &region : appData->uiManager->getRegions())
         {
-            appData->renderer->resizeFramebuffer(&region,
-                                                 appData->uiManager->screenWidth,
-                                                 appData->uiManager->screenHeight);
+            if (region.name != "sidebar" && region.name != "status")
+            {
+                appData->renderer->resizeFramebuffer(&region,
+                                                     appData->uiManager->screenWidth,
+                                                     appData->uiManager->screenHeight);
+            }
         }
     }
     else
@@ -193,11 +183,29 @@ int main()
     UIManager uiManager(SCR_WIDTH, SCR_HEIGHT);
     uiManager.setWindow(window); // Set the window for cursor changes
 
+    // Define the render area available for the main content (accounting for ImGui panels)
+    float availableWidth = 0.8f;   // 80% of screen width (sidebar takes 20%)
+    float availableHeight = 0.95f; // 95% of screen height (status bar takes 5%)
+    float startX = 0.0f;
+    float startY = 0.0f;
+
     // Set up UI regions - create a 2x2 grid of regions for the triangles
-    uiManager.addRegion("quad_tl", 0.0f, 0.0f, 0.495f, 0.495f);     // Top-left
-    uiManager.addRegion("quad_tr", 0.505f, 0.0f, 0.495f, 0.495f);   // Top-right
-    uiManager.addRegion("quad_bl", 0.0f, 0.505f, 0.495f, 0.495f);   // Bottom-left
-    uiManager.addRegion("quad_br", 0.505f, 0.505f, 0.495f, 0.495f); // Bottom-right
+    // Note: regions are relative to the available area, not the full window
+    uiManager.addRegion("quad_tl", startX, startY,
+                        availableWidth * 0.5f, availableHeight * 0.5f); // Top-left
+
+    uiManager.addRegion("quad_tr", startX + availableWidth * 0.5f, startY,
+                        availableWidth * 0.5f, availableHeight * 0.5f); // Top-right
+
+    uiManager.addRegion("quad_bl", startX, startY + availableHeight * 0.5f,
+                        availableWidth * 0.5f, availableHeight * 0.5f); // Bottom-left
+
+    uiManager.addRegion("quad_br", startX + availableWidth * 0.5f, startY + availableHeight * 0.5f,
+                        availableWidth * 0.5f, availableHeight * 0.5f); // Bottom-right
+
+    // Add ImGui regions (these are not rendered via framebuffers but reserved for ImGui)
+    uiManager.addRegion("sidebar", availableWidth, 0.0f, 1.0f - availableWidth, 1.0f);
+    uiManager.addRegion("status", 0.0f, availableHeight, availableWidth, 1.0f - availableHeight);
 
     // Give the renderer access to the UIManager
     renderer.setUIManager(&uiManager);
@@ -217,16 +225,16 @@ int main()
         imguiManager.setAppStatus("Ready to analyze molecules");
     }
 
+    // Store original callbacks
+    glfwSetMouseButtonCallback(window, mouse_button_callback);
+    glfwSetCursorPosCallback(window, cursor_position_callback);
+
     // Create AppData for callbacks
     AppData appData;
     appData.uiManager = &uiManager;
     appData.renderer = &renderer;
     appData.imguiManager = &imguiManager;
     glfwSetWindowUserPointer(window, &appData);
-
-    // Set mouse callbacks
-    glfwSetMouseButtonCallback(window, mouse_button_callback);
-    glfwSetCursorPosCallback(window, cursor_position_callback);
 
     // Enable vsync
     glfwSwapInterval(1);

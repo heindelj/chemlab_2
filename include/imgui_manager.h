@@ -36,7 +36,24 @@ public:
     // Property getters/setters (example for molecule viewer)
     void setMoleculeInfo(const std::string& name, int atoms, float radius);
     void setAppStatus(const std::string& status);
-    
+
+    // Add these to the public section of ImGuiManager class
+    static void ImGuiMouseButtonCallback(GLFWwindow *window, int button, int action, int mods);
+    static void ImGuiCursorPosCallback(GLFWwindow *window, double xpos, double ypos);
+    static void ImGuiScrollCallback(GLFWwindow *window, double xoffset, double yoffset);
+    static void ImGuiKeyCallback(GLFWwindow *window, int key, int scancode, int action, int mods);
+    static void ImGuiCharCallback(GLFWwindow *window, unsigned int c);
+
+    // Original application callbacks that we'll chain to
+    static GLFWmousebuttonfun OrigMouseButtonCallback;
+    static GLFWcursorposfun OrigCursorPosCallback;
+    static GLFWscrollfun OrigScrollCallback;
+    static GLFWkeyfun OrigKeyCallback;
+    static GLFWcharfun OrigCharCallback;
+
+    // Set up the callbacks
+    static void InstallCallbacks(GLFWwindow *window);
+
     // Callback for GLFW when window size changes
     static void framebufferSizeCallback(GLFWwindow* window, int width, int height);
 
