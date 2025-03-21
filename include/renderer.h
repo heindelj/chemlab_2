@@ -8,13 +8,16 @@
 #include <vector>
 #include <map>
 #include "ui_region.h"
+#include "ui_manager.h"
 
 class Renderer {
 public:
     Renderer(GLFWwindow* window);
     bool initialized = false;
     void cleanup();
-    
+
+    void setUIManager(UIManager *manager) { uiManager = manager; }
+
     void renderRegion(const UIRegion& region);
 
     // Framebuffer methods and type
@@ -51,10 +54,15 @@ public:
     unsigned int basicShaderProgram;
     unsigned int triangleShaderProgram;
     unsigned int framebufferShaderProgram;
-    unsigned int lineShaderProgram;
+    unsigned int lineShaderProgram = 0;
+
+    void drawGridLines();
 
     // Reference to the window
-    GLFWwindow *window;
+    GLFWwindow *window = nullptr;
+
+    // Reference to the UIManager
+    UIManager *uiManager = nullptr;
 
     // Setup methods
     void initShaders();

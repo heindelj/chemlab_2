@@ -1,5 +1,16 @@
 #include "renderer.h"
+#include "ui_manager.h"
 #include <iostream>
+#include <glm/gtc/type_ptr.hpp>
+
+// Forward declaration of AppData
+struct AppData
+{
+    class UIManager *uiManager;
+    class Renderer *renderer;
+    class ImGuiManager *imguiManager;
+    bool mousePressed = false;
+};
 
 // Basic vertex shader
 const char* basicVertexShaderSource = R"(
@@ -284,12 +295,141 @@ void Renderer::renderRegion(const UIRegion& region) {
 
         glUseProgram(triangleShaderProgram);
 
+        // Set time and rotation direction (clockwise)
         float timeValue = glfwGetTime();
-        float redValue = (sin(timeValue) / 2.0f + 3.14159f / 3.0f) + 0.5f;
-        float greenValue = (sin(timeValue) / 2.0f) + 0.5f;
-        float blueValue = (sin(timeValue) / 2.0f + 2 * 3.14159f / 3.0f) + 0.5f;
-        int vertexColorLocation = glGetUniformLocation(triangleShaderProgram, "u_Color");
-        glUniform4f(vertexColorLocation, redValue, greenValue, blueValue, 1.0f);
+        int timeLocation = glGetUniformLocation(triangleShaderProgram, "u_Time");
+        int directionLocation = glGetUniformLocation(triangleShaderProgram, "u_Direction");
+        glUniform1f(timeLocation, timeValue);
+        glUniform1f(directionLocation, 1.0f);
+
+        // Set color to green with animation
+        float greenPulse = (sin(timeValue) / 5.0f) + 0.7f; // Pulse between 0.5 and 0.9
+        int colorLocation = glGetUniformLocation(triangleShaderProgram, "u_Color");
+        glUniform4f(colorLocation, 0.0f, greenPulse, 0.2f, 1.0f);
+
+        glDrawArrays(GL_TRIANGLES, 0, 3);
+
+        // Clean up
+        glBindVertexArray(0);
+        glDeleteVertexArrays(1, &VAO);
+        glDeleteBuffers(1, &VBO);
+    }
+    if (region.name == "quad_tl")
+    {
+        // Top-left: Green upward triangle
+        float vertices[] = {
+            -0.5f, -0.5f, 0.0f,
+            0.5f, -0.5f, 0.0f,
+            0.0f, 0.5f, 0.0f};
+
+        unsigned int VBO, VAO;
+        glGenVertexArrays(1, &VAO);
+        glGenBuffers(1, &VBO);
+
+        glBindVertexArray(VAO);
+        glBindBuffer(GL_ARRAY_BUFFER, VBO);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0);
+        glEnableVertexAttribArray(0);
+
+        glUseProgram(triangleShaderProgram);
+
+        // Set color to green
+        int colorLocation = glGetUniformLocation(triangleShaderProgram, "u_Color");
+        glUniform4f(colorLocation, 0.0f, 0.8f, 0.2f, 1.0f);
+
+        glDrawArrays(GL_TRIANGLES, 0, 3);
+
+        // Clean up
+        glBindVertexArray(0);
+        glDeleteVertexArrays(1, &VAO);
+        glDeleteBuffers(1, &VBO);
+    }
+    else if (region.name == "quad_tr")
+    {
+        // Top-right: Red right-pointing triangle
+        float vertices[] = {
+            -0.5f, 0.5f, 0.0f,
+            -0.5f, -0.5f, 0.0f,
+            0.5f, 0.0f, 0.0f};
+
+        unsigned int VBO, VAO;
+        glGenVertexArrays(1, &VAO);
+        glGenBuffers(1, &VBO);
+
+        glBindVertexArray(VAO);
+        glBindBuffer(GL_ARRAY_BUFFER, VBO);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0);
+        glEnableVertexAttribArray(0);
+
+        glUseProgram(triangleShaderProgram);
+
+        // Set color to red
+        int colorLocation = glGetUniformLocation(triangleShaderProgram, "u_Color");
+        glUniform4f(colorLocation, 0.9f, 0.1f, 0.1f, 1.0f);
+
+        glDrawArrays(GL_TRIANGLES, 0, 3);
+
+        // Clean up
+        glBindVertexArray(0);
+        glDeleteVertexArrays(1, &VAO);
+        glDeleteBuffers(1, &VBO);
+    }
+    else if (region.name == "quad_bl")
+    {
+        // Bottom-left: Blue downward triangle
+        float vertices[] = {
+            -0.5f, 0.5f, 0.0f,
+            0.5f, 0.5f, 0.0f,
+            0.0f, -0.5f, 0.0f};
+
+        unsigned int VBO, VAO;
+        glGenVertexArrays(1, &VAO);
+        glGenBuffers(1, &VBO);
+
+        glBindVertexArray(VAO);
+        glBindBuffer(GL_ARRAY_BUFFER, VBO);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0);
+        glEnableVertexAttribArray(0);
+
+        glUseProgram(triangleShaderProgram);
+
+        // Set color to blue
+        int colorLocation = glGetUniformLocation(triangleShaderProgram, "u_Color");
+        glUniform4f(colorLocation, 0.1f, 0.3f, 0.9f, 1.0f);
+
+        glDrawArrays(GL_TRIANGLES, 0, 3);
+
+        // Clean up
+        glBindVertexArray(0);
+        glDeleteVertexArrays(1, &VAO);
+        glDeleteBuffers(1, &VBO);
+    }
+    else if (region.name == "quad_br")
+    {
+        // Bottom-right: Yellow left-pointing triangle
+        float vertices[] = {
+            0.5f, 0.5f, 0.0f,
+            0.5f, -0.5f, 0.0f,
+            -0.5f, 0.0f, 0.0f};
+
+        unsigned int VBO, VAO;
+        glGenVertexArrays(1, &VAO);
+        glGenBuffers(1, &VBO);
+
+        glBindVertexArray(VAO);
+        glBindBuffer(GL_ARRAY_BUFFER, VBO);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0);
+        glEnableVertexAttribArray(0);
+
+        glUseProgram(triangleShaderProgram);
+
+        // Set color to yellow
+        int colorLocation = glGetUniformLocation(triangleShaderProgram, "u_Color");
+        glUniform4f(colorLocation, 0.9f, 0.9f, 0.1f, 1.0f);
 
         glDrawArrays(GL_TRIANGLES, 0, 3);
 
@@ -447,7 +587,8 @@ void Renderer::unbindFramebuffer()
     glViewport(0, 0, width, height);
 }
 
-void Renderer::renderFramebufferToScreen(const UIRegion &region) {
+void Renderer::renderFramebufferToScreen(const UIRegion &region)
+{
     auto it = framebuffers.find(region.name);
     if (it == framebuffers.end())
     {
@@ -461,9 +602,13 @@ void Renderer::renderFramebufferToScreen(const UIRegion &region) {
 
     // Calculate viewport based on region dimensions
     int x = static_cast<int>(region.x * windowWidth);
-    int y = static_cast<int>(region.y * windowHeight);
+    int y = static_cast<int>((1.0f - region.y - region.height) * windowHeight); // Flip Y coordinate
     int width = static_cast<int>(region.width * windowWidth);
     int height = static_cast<int>(region.height * windowHeight);
+
+    // Ensure we don't have zero-sized viewports
+    width = std::max(1, width);
+    height = std::max(1, height);
 
     // Set viewport to the region
     glViewport(x, y, width, height);
@@ -472,6 +617,12 @@ void Renderer::renderFramebufferToScreen(const UIRegion &region) {
     GLboolean depthTestEnabled;
     glGetBooleanv(GL_DEPTH_TEST, &depthTestEnabled);
     glDisable(GL_DEPTH_TEST);
+
+    // Enable blending for transparent regions
+    GLboolean blendEnabled;
+    glGetBooleanv(GL_BLEND, &blendEnabled);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     // Simple fullscreen quad for rendering the texture
     static unsigned int quadVAO = 0;
@@ -528,6 +679,12 @@ void Renderer::renderFramebufferToScreen(const UIRegion &region) {
     glBindVertexArray(quadVAO);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     glBindVertexArray(0);
+
+    // Restore blend state
+    if (!blendEnabled)
+    {
+        glDisable(GL_BLEND);
+    }
 
     // Restore depth testing state
     if (depthTestEnabled)
@@ -611,4 +768,174 @@ void Renderer::cleanupFramebuffers()
         glDeleteFramebuffers(1, &fbo.fbo);
     }
     framebuffers.clear();
+}
+
+void Renderer::drawGridLines() {
+
+    if (!uiManager)
+        return;
+
+    // Disable depth testing temporarily
+    GLboolean depthTestEnabled;
+    glGetBooleanv(GL_DEPTH_TEST, &depthTestEnabled);
+    glDisable(GL_DEPTH_TEST);
+
+    // Save current viewport
+    GLint viewport[4];
+    glGetIntegerv(GL_VIEWPORT, viewport);
+
+    // Set viewport to entire window
+    int width, height;
+    glfwGetFramebufferSize(window, &width, &height);
+    glViewport(0, 0, width, height);
+
+    // Create line shader if it doesn't exist
+    if (lineShaderProgram == 0)
+    {
+        const char *lineVertexShaderSource = R"(
+            #version 460 core
+            layout (location = 0) in vec2 aPos;
+            
+            uniform mat4 uProjection;
+            
+            void main() {
+                gl_Position = uProjection * vec4(aPos, 0.0, 1.0);
+            }
+        )";
+
+        const char *lineFragmentShaderSource = R"(
+            #version 460 core
+            out vec4 FragColor;
+            
+            uniform vec4 uColor;
+            
+            void main() {
+                FragColor = uColor;
+            }
+        )";
+
+        lineShaderProgram = createShaderProgram(lineVertexShaderSource, lineFragmentShaderSource);
+    }
+
+    // Set up orthographic projection
+    glm::mat4 projection = glm::ortho(0.0f, static_cast<float>(width),
+                                      static_cast<float>(height), 0.0f, -1.0f, 1.0f);
+
+    // Use line shader
+    glUseProgram(lineShaderProgram);
+
+    // Set projection matrix
+    GLint projLoc = glGetUniformLocation(lineShaderProgram, "uProjection");
+    glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projection));
+
+    // Set line color (white with some transparency)
+    GLint colorLoc = glGetUniformLocation(lineShaderProgram, "uColor");
+    glUniform4f(colorLoc, 1.0f, 1.0f, 1.0f, 0.7f);
+
+    // Find the horizontal and vertical boundary positions
+    float horizontalBoundaryY = 0.0f;
+    float verticalBoundaryX = 0.0f;
+    bool foundHorizontal = false;
+    bool foundVertical = false;
+
+    // Get the boundaries from the regions
+    const auto &regions = uiManager->getRegions();
+
+    // Find quad_tl and get its bottom/right edges
+    for (const auto &region : regions)
+    {
+        if (region.name == "quad_tl")
+        {
+            // The right edge of quad_tl is the vertical boundary
+            verticalBoundaryX = (region.x + region.width) * width;
+            foundVertical = true;
+
+            // The bottom edge of quad_tl is the horizontal boundary
+            horizontalBoundaryY = (1.0f - (region.y + region.height)) * height;
+            foundHorizontal = true;
+
+            break;
+        }
+    }
+
+    // If we didn't find the boundaries from regions, use screen center as fallback
+    if (!foundHorizontal)
+    {
+        horizontalBoundaryY = height / 2.0f;
+    }
+
+    if (!foundVertical)
+    {
+        verticalBoundaryX = width / 2.0f;
+    }
+
+    // Draw vertical line
+    float verticalLineVertices[] = {
+        verticalBoundaryX, 0.0f,
+        verticalBoundaryX, static_cast<float>(height)};
+
+    // Draw horizontal line
+    float horizontalLineVertices[] = {
+        0.0f, horizontalBoundaryY,
+        static_cast<float>(width), horizontalBoundaryY};
+
+    // Set up VAO/VBO for lines
+    unsigned int lineVAO, lineVBO;
+    glGenVertexArrays(1, &lineVAO);
+    glGenBuffers(1, &lineVBO);
+
+    glBindVertexArray(lineVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, lineVBO);
+
+    // Enable blending for transparent lines
+    GLboolean blendEnabled;
+    glGetBooleanv(GL_BLEND, &blendEnabled);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    // Vertical line
+    glBufferData(GL_ARRAY_BUFFER, sizeof(verticalLineVertices), verticalLineVertices, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void *)0);
+    glEnableVertexAttribArray(0);
+
+    // Enable line smoothing and set line width
+    glEnable(GL_LINE_SMOOTH);
+    glLineWidth(2.0f);
+
+    // Draw vertical line
+    glDrawArrays(GL_LINES, 0, 2);
+
+    // Horizontal line
+    glBufferData(GL_ARRAY_BUFFER, sizeof(horizontalLineVertices), horizontalLineVertices, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void *)0);
+    glEnableVertexAttribArray(0);
+
+    // Draw horizontal line
+    glDrawArrays(GL_LINES, 0, 2);
+
+    // Clean up
+    glBindVertexArray(0);
+    glDeleteVertexArrays(1, &lineVAO);
+    glDeleteBuffers(1, &lineVBO);
+
+    // Restore line width
+    glLineWidth(1.0f);
+
+    // Disable line smoothing
+    glDisable(GL_LINE_SMOOTH);
+
+    // Restore blend state
+    if (!blendEnabled)
+    {
+        glDisable(GL_BLEND);
+    }
+
+    // Restore viewport
+    glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
+
+    // Restore depth testing
+    if (depthTestEnabled)
+    {
+        glEnable(GL_DEPTH_TEST);
+    }
 }
